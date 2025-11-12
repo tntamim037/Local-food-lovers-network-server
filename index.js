@@ -110,6 +110,16 @@ async function run() {
 });
    
 
+app.get("/my-reviews", verifyToken, async (req, res) => {
+  const email = req.query.email
+  const result = await reviewsColl.find({ userEmail: email }).toArray()
+  res.send(result)
+});
+
+
+
+
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
