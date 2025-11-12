@@ -60,9 +60,14 @@ async function run() {
     const db = client.db("food-lover");
     const slidersColl = db.collection("sliders");
     const reviewsColl = db.collection("reviews");
+    const streetFoodColl = db.collection("street-food");
 
     app.get("/sliders", async (req, res) => {
       const result = await slidersColl.find().toArray();
+      res.send(result);
+    });
+    app.get("/street-food", async (req, res) => {
+      const result = await streetFoodColl.find().toArray();
       res.send(result);
     });
 
@@ -84,6 +89,7 @@ async function run() {
 
       
       const result = await reviewsColl.insertOne(review);
+      // console.log("Inserted review:", result)
       res.send(result);
     });
 
