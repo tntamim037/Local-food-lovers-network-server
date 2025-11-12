@@ -26,6 +26,32 @@ const client = new MongoClient(uri, {
   },
 });
 
+const verifyToken = async (req, res, next) => {
+  const authorization = req.headers.authorization
+
+  if (!authorization) {
+    return res.status(401).send({
+      success: false,
+      message: "Unauthorized access. Token not found!",
+    })
+  }
+  const token = authorization.split(" ")[1]
+
+  try {
+   
+    const decodedUser = await admin.auth().verifyIdToken(token)
+    req.decodedUser = decodedUser
+
+    next()
+  } catch (error) {
+    console.error("Token verification failed:", error.message);
+    return res.status(401).send({
+      success: false,
+      message: "Unauthorized access. Invalid or expired token!",
+    })
+  }
+}
+
 
 async function run() {
   try {
