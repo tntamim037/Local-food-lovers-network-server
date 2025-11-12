@@ -118,6 +118,21 @@ app.get("/my-reviews", verifyToken, async (req, res) => {
 
 
 
+app.delete("/reviews/:id", verifyToken, async (req, res) => {
+  const result = await reviewsColl.deleteOne({ _id: new ObjectId(req.params.id) })
+  res.send(result.deletedCount ? { success: true } : { success: false })
+})
+
+
+app.put("/reviews/:id", verifyToken, async (req, res) => {
+  const { foodName, foodImage, restaurantName, location, rating, reviewText } = req.body
+  const result = await reviewsColl.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { foodName, foodImage, restaurantName, location, rating, reviewText, updatedAt: new Date() } }
+  )
+  res.send(result)
+})
+
 
 
     await client.db("admin").command({ ping: 1 });
