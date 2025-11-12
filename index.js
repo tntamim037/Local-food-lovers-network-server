@@ -61,6 +61,7 @@ async function run() {
     const slidersColl = db.collection("sliders");
     const reviewsColl = db.collection("reviews");
     const streetFoodColl = db.collection("street-food");
+    const restaurantColl = db.collection("restaurant");
 
     app.get("/sliders", async (req, res) => {
       const result = await slidersColl.find().toArray();
@@ -68,6 +69,10 @@ async function run() {
     });
     app.get("/street-food", async (req, res) => {
       const result = await streetFoodColl.find().toArray();
+      res.send(result);
+    });
+    app.get("/restaurant", async (req, res) => {
+      const result = await restaurantColl.find().toArray();
       res.send(result);
     });
 
