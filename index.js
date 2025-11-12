@@ -79,8 +79,10 @@ async function run() {
     });
 
     
-    app.post("/reviews", async (req, res) => {
+    app.post("/reviews",verifyToken, async (req, res) => {
       const review = req.body;
+
+      
       const result = await reviewsColl.insertOne(review);
       res.send(result);
     });
