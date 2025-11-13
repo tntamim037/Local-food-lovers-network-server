@@ -62,6 +62,8 @@ async function run() {
     const reviewsColl = db.collection("reviews");
     const streetFoodColl = db.collection("street-food");
     const restaurantColl = db.collection("restaurant");
+    const favoritesColl = db.collection("favorites");
+
 
     app.get("/sliders", async (req, res) => {
       const result = await slidersColl.find().toArray();
@@ -131,6 +133,32 @@ app.put("/reviews/:id", verifyToken, async (req, res) => {
     { $set: { foodName, foodImage, restaurantName, location, rating, reviewText, updatedAt: new Date() } }
   )
   res.send(result)
+})
+
+app.post("/favorites", verifyToken, async (req, res) => {
+  const favorite = req.body
+  const query = { userEmail: favorite.userEmail, reviewId: favorite.reviewId }
+  const existing = await favoritesColl.findOne(query)
+
+  if (existing) {
+    return res.send({ success: false, message: "Already in favorites!" });
+  }
+
+  const result = await favoritesColl.insertOne(favorite)
+  res.send({ success: true, result })
+})
+
+
+app.get("/favorites", verifyToken, async (req, res) => {
+  const email = req.query.email
+  const favorites = await favoritesColl.find({ userEmail: email }).toArray()
+  res.send(favorites)
+})
+
+app.delete("/favorites/:id", verifyToken, async (req, res) => {
+  const id = req.params.id
+  const result = await favoritesColl.deleteOne({ _id: new ObjectId(id) })
+  res.send(result.deletedCount ? { success: true } : { success: false })
 })
 
 
