@@ -1,22 +1,28 @@
 const express = require("express");
 const cors = require("cors");
+const admin = require("firebase-admin");
+require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 3000;
 
-const admin = require("firebase-admin");
 const serviceAccount = require("./service.json");
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "https://local-food-lovers-network.netlify.app",
+      "http://localhost:5173",
+    ],
+  })
+);
 app.use(express.json());
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
 });
 
-
-const uri =
-  "mongodb+srv://food-lover037:hEs9utZiR349Ua2L@cluster0.xgnza1z.mongodb.net/?appName=Cluster0";
+const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.xgnza1z.mongodb.net/?appName=Cluster0`;
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -27,35 +33,33 @@ const client = new MongoClient(uri, {
 });
 
 const verifyToken = async (req, res, next) => {
-  const authorization = req.headers.authorization
+  const authorization = req.headers.authorization;
 
   if (!authorization) {
     return res.status(401).send({
       success: false,
       message: "Unauthorized access. Token not found!",
-    })
+    });
   }
-  const token = authorization.split(" ")[1]
+  const token = authorization.split(" ")[1];
 
   try {
-   
-    const decodedUser = await admin.auth().verifyIdToken(token)
-    req.decodedUser = decodedUser
+    const decodedUser = await admin.auth().verifyIdToken(token);
+    req.decodedUser = decodedUser;
 
-    next()
+    next();
   } catch (error) {
     console.error("Token verification failed:", error.message);
     return res.status(401).send({
       success: false,
       message: "Unauthorized access. Invalid or expired token!",
-    })
+    });
   }
-}
-
+};
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("food-lover");
     const slidersColl = db.collection("sliders");
@@ -63,7 +67,6 @@ async function run() {
     const streetFoodColl = db.collection("street-food");
     const restaurantColl = db.collection("restaurant");
     const favoritesColl = db.collection("favorites");
-
 
     app.get("/sliders", async (req, res) => {
       const result = await slidersColl.find().toArray();
@@ -87,83 +90,95 @@ async function run() {
 
       const result = await reviewsColl.find(query).toArray();
       res.send(result);
-      
     });
 
-    
-    app.post("/reviews",verifyToken, async (req, res) => {
+    app.post("/reviews", verifyToken, async (req, res) => {
       const review = req.body;
 
-      
       const result = await reviewsColl.insertOne(review);
       // console.log("Inserted review:", result)
       res.send(result);
     });
 
+    app.get("/reviews/:id", async (req, res) => {
+      const { id } = req.params;
+      const objectId = new ObjectId(id);
 
+      const result = await reviewsColl.findOne({ _id: objectId });
 
-   app.get("/reviews/:id", async (req, res) => {
-  const { id } = req.params;
-  const objectId = new ObjectId(id);
+      res.send({ success: true, result });
+    });
 
-  const result = await reviewsColl.findOne({ _id: objectId });
+    app.get("/my-reviews", verifyToken, async (req, res) => {
+      const email = req.query.email;
+      const result = await reviewsColl.find({ userEmail: email }).toArray();
+      res.send(result);
+    });
 
-  res.send({ success: true, result });
-});
-   
+    app.delete("/reviews/:id", verifyToken, async (req, res) => {
+      const result = await reviewsColl.deleteOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.send(result.deletedCount ? { success: true } : { success: false });
+    });
 
-app.get("/my-reviews", verifyToken, async (req, res) => {
-  const email = req.query.email
-  const result = await reviewsColl.find({ userEmail: email }).toArray()
-  res.send(result)
-});
+    app.put("/reviews/:id", verifyToken, async (req, res) => {
+      const {
+        foodName,
+        foodImage,
+        restaurantName,
+        location,
+        rating,
+        reviewText,
+      } = req.body;
+      const result = await reviewsColl.updateOne(
+        { _id: new ObjectId(req.params.id) },
+        {
+          $set: {
+            foodName,
+            foodImage,
+            restaurantName,
+            location,
+            rating,
+            reviewText,
+            updatedAt: new Date(),
+          },
+        }
+      );
+      res.send(result);
+    });
 
+    app.post("/favorites", verifyToken, async (req, res) => {
+      const favorite = req.body;
+      const query = {
+        userEmail: favorite.userEmail,
+        reviewId: favorite.reviewId,
+      };
+      const existing = await favoritesColl.findOne(query);
 
+      if (existing) {
+        return res.send({ success: false, message: "Already in favorites!" });
+      }
 
-app.delete("/reviews/:id", verifyToken, async (req, res) => {
-  const result = await reviewsColl.deleteOne({ _id: new ObjectId(req.params.id) })
-  res.send(result.deletedCount ? { success: true } : { success: false })
-})
+      const result = await favoritesColl.insertOne(favorite);
+      res.send({ success: true, result });
+    });
 
+    app.get("/favorites", verifyToken, async (req, res) => {
+      const email = req.query.email;
+      const favorites = await favoritesColl
+        .find({ userEmail: email })
+        .toArray();
+      res.send(favorites);
+    });
 
-app.put("/reviews/:id", verifyToken, async (req, res) => {
-  const { foodName, foodImage, restaurantName, location, rating, reviewText } = req.body
-  const result = await reviewsColl.updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { foodName, foodImage, restaurantName, location, rating, reviewText, updatedAt: new Date() } }
-  )
-  res.send(result)
-})
+    app.delete("/favorites/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const result = await favoritesColl.deleteOne({ _id: new ObjectId(id) });
+      res.send(result.deletedCount ? { success: true } : { success: false });
+    });
 
-app.post("/favorites", verifyToken, async (req, res) => {
-  const favorite = req.body
-  const query = { userEmail: favorite.userEmail, reviewId: favorite.reviewId }
-  const existing = await favoritesColl.findOne(query)
-
-  if (existing) {
-    return res.send({ success: false, message: "Already in favorites!" });
-  }
-
-  const result = await favoritesColl.insertOne(favorite)
-  res.send({ success: true, result })
-})
-
-
-app.get("/favorites", verifyToken, async (req, res) => {
-  const email = req.query.email
-  const favorites = await favoritesColl.find({ userEmail: email }).toArray()
-  res.send(favorites)
-})
-
-app.delete("/favorites/:id", verifyToken, async (req, res) => {
-  const id = req.params.id
-  const result = await favoritesColl.deleteOne({ _id: new ObjectId(id) })
-  res.send(result.deletedCount ? { success: true } : { success: false })
-})
-
-
-
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
@@ -180,4 +195,3 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`server is running on port ${port}`);
 });
-
